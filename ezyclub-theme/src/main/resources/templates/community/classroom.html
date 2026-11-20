@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout community-layout-full">
+            <section>
+                <div class="section-title">
+                    <h2>[[#{classroom}]]</h2>
+                    <button th:if="${manager}" type="button" class="btn btn-primary btn-sm" onclick="openCourseEditor()">
+                        <svg class="icon"><use href="#i-plus"></use></svg>
+                        <span>[[#{new_course}]]</span>
+                    </button>
+                </div>
+                <div class="classroom-grid" id="courseGrid"></div>
+            </section>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <th:block th:replace="~{fragments/classroom :: scripts}"/>
+    <script>
+    var renderCourseCard = function (course) {
+        var lock = course.locked
+            ? `
+                <div class="course-lock">
+                    ${SM.icon('lock')}
+                    <span>${SM.escape(SM.format(SM.t('unlock_at_level', 'Unlock at level %level%'), {level: course.unlockLevel}))}</span>
+                </div>
+                `
+            : SM.icon('book');
+        var draft = course.published
+            ? ''
+            : '<span class="badge">' + SM.escape(SM.t('draft', 'Draft')) + '</span>';
+        return `
+            <a class="card course-card" href="${SM.escape(SM.url('/c/' + SM.community.slug + '/classroom/' + course.id))}">
+                <div class="course-cover ${course.locked ? 'locked' : ''}" style="${SM.coverStyle(course.title, SM.community.themeColor)}">
+                    ${lock}
+                </div>
+                <div class="course-body">
+                    <h3>${SM.escape(course.title)} ${draft}</h3>
+                    <p>${SM.escape(course.description)}</p>
+                    <div class="progress"><span style="width: ${course.progress}%"></span></div>
+                    <div class="progress-label">${SM.escape(SM.format(SM.t('progress_complete', '%value%% complete'), {value: course.progress}))}</div>
+                </div>
+            </a>
+            `;
+    };
+
+    var loadCourses = function () {
+        var grid = document.getElementById('courseGrid');
+        grid.innerHTML = SM.loadingHtml();
+        SM.get(SM.communityPath('/courses')).then(function (courses) {
+            grid.innerHTML = courses.length
+                ? courses.map(renderCourseCard).join('')
+                : SM.emptyHtml('book', SM.t('no_courses_yet', 'No courses yet'));
+        });
+    };
+
+    SM.onCourseSaved = loadCourses;
+
+    $(document).ready(loadCourses);
+    </script>
+</th:block>
+</body>
+</html>

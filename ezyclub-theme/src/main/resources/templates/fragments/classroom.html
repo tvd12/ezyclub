@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<script th:fragment="scripts" th:inline="javascript">
+var classroomLevelPoints = /*[[${levelPoints}]]*/ [];
+
+var openCourseEditor = function (course) {
+    var levelOptions = classroomLevelPoints.map(function (points, index) {
+        var level = index + 1;
+        var selected = course && course.unlockLevel === level ? 'selected' : '';
+        return '<option value="' + level + '" ' + selected + '>' +
+            SM.escape(SM.format(SM.t('level_number', 'Level %level%'), {level: level})) + '</option>';
+    }).join('');
+    SM.openModal(`
+        <form onsubmit="return submitCourse(event, ${course ? course.id : 0})">
+            <div class="modal-header">
+                <h3>${SM.escape(course ? SM.t('edit_course', 'Edit course') : SM.t('new_course', 'New course'))}</h3>
+                <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('title', 'Title'))}</label>
+                    <input type="text" name="title" class="form-control" maxlength="300" value="${SM.escape(course ? course.title : '')}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('description', 'Description'))}</label>
+                    <textarea name="description" class="form-control" rows="4">${SM.escape(course ? course.description : '')}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('unlock_level', 'Unlock level'))}</label>
+                    <select name="unlockLevel" class="form-control">${levelOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('display_order', 'Display order'))}</label>
+                    <input type="number" name="displayOrder" class="form-control" value="${course ? course.displayOrder : 0}">
+                </div>
+                <label class="switch">
+                    <input type="checkbox" name="published" ${!course || course.published ? 'checked' : ''}>
+                    <span>${SM.escape(SM.t('published', 'Published'))}</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="SM.closeModal()">${SM.escape(SM.t('cancel', 'Cancel'))}</button>
+                <button type="submit" class="btn btn-primary">${SM.escape(SM.t('save', 'Save'))}</button>
+            </div>
+        </form>
+        `);
+};
+
+var submitCourse = function (event, courseId) {
+    event.preventDefault();
+    var form = event.target;
+    var data = {
+        title: form.title.value,
+        description: form.description.value,
+        unlockLevel: Number(form.unlockLevel.value),
+        displayOrder: Number(form.displayOrder.value || 0),
+        published: form.published.checked
+    };
+    var request = courseId
+        ? SM.put(SM.communityPath('/courses/' + courseId), data)
+        : SM.post(SM.communityPath('/courses'), data);
+    request.then(function () {
+        SM.closeModal();
+        SM.toast(SM.t('saved', 'Saved'));
+        if (SM.onCourseSaved) {
+            SM.onCourseSaved();
+        }
+    }).catch(function (xhr) {
+        SM.showFormErrors(form, xhr);
+    });
+    return false;
+};
+
+var openLessonEditor = function (courseId, lesson) {
+    SM.openModal(`
+        <form onsubmit="return submitLesson(event, ${courseId}, ${lesson ? lesson.id : 0})">
+            <div class="modal-header">
+                <h3>${SM.escape(lesson ? SM.t('edit_lesson', 'Edit lesson') : SM.t('new_lesson', 'New lesson'))}</h3>
+                <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('title', 'Title'))}</label>
+                    <input type="text" name="title" class="form-control" maxlength="300" value="${SM.escape(lesson ? lesson.title : '')}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('video_url', 'Video URL'))}</label>
+                    <input type="url" name="videoUrl" class="form-control" dir="ltr" placeholder="https://" value="${SM.escape(lesson ? lesson.videoUrl : '')}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('content', 'Content'))}</label>
+                    <textarea name="content" class="form-control" rows="8">${SM.escape(lesson ? lesson.content : '')}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${SM.escape(SM.t('display_order', 'Display order'))}</label>
+                    <input type="number" name="displayOrder" class="form-control" value="${lesson ? lesson.displayOrder : 0}">
+                </div>
+                <label class="switch">
+                    <input type="checkbox" name="published" ${!lesson || lesson.published ? 'checked' : ''}>
+                    <span>${SM.escape(SM.t('published', 'Published'))}</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="SM.closeModal()">${SM.escape(SM.t('cancel', 'Cancel'))}</button>
+                <button type="submit" class="btn btn-primary">${SM.escape(SM.t('save', 'Save'))}</button>
+            </div>
+        </form>
+        `);
+};
+
+var submitLesson = function (event, courseId, lessonId) {
+    event.preventDefault();
+    var form = event.target;
+    var data = {
+        title: form.title.value,
+        videoUrl: form.videoUrl.value,
+        content: form.content.value,
+        displayOrder: Number(form.displayOrder.value || 0),
+        published: form.published.checked
+    };
+    var path = '/courses/' + courseId + '/lessons';
+    var request = lessonId
+        ? SM.put(SM.communityPath(path + '/' + lessonId), data)
+        : SM.post(SM.communityPath(path), data);
+    request.then(function () {
+        SM.closeModal();
+        SM.toast(SM.t('saved', 'Saved'));
+        if (SM.onLessonSaved) {
+            SM.onLessonSaved();
+        }
+    }).catch(function (xhr) {
+        SM.showFormErrors(form, xhr);
+    });
+    return false;
+};
+</script>
+</body>
+</html>

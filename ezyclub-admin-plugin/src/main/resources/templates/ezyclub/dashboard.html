@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezyadmin}">
+<body>
+<div layout:fragment="content">
+    <div class="row">
+        <div class="col-lg-4 col-md-6">
+            <div class="small-box bg-info">
+                <div class="inner">
+                    <h3 class="number-with-commas" th:text="${communityCount}"></h3>
+                    <p>[[#{total_communities}]]</p>
+                </div>
+                <div class="icon"><i class="fas fa-users"></i></div>
+                <a href="/ezyclub/communities" class="small-box-footer">[[#{view_all}]] <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="small-box bg-success">
+                <div class="inner">
+                    <h3 class="number-with-commas" th:text="${activeCommunityCount}"></h3>
+                    <p>[[#{active_communities}]]</p>
+                </div>
+                <div class="icon"><i class="fas fa-check-circle"></i></div>
+                <a href="/ezyclub/communities" class="small-box-footer">[[#{view_all}]] <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-12">
+            <div class="small-box bg-secondary">
+                <div class="inner">
+                    <h3 th:text="${settings.allowUserCreateCommunity ? #messages.msg('on') : #messages.msg('off')}"></h3>
+                    <p>[[#{users_can_create_communities}]]</p>
+                </div>
+                <div class="icon"><i class="fas fa-tools"></i></div>
+                <a href="/ezyclub/settings" class="small-box-footer">[[#{settings}]] <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">[[#{data_storage}]]</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">[[#{data_storage_description}]]</p>
+            <ul class="mb-0">
+                <li>[[#{data_storage_communities}]]</li>
+                <li>[[#{data_storage_posts}]]</li>
+                <li>[[#{data_storage_likes}]]</li>
+                <li>[[#{data_storage_events}]]</li>
+                <li>[[#{data_storage_progress}]]</li>
+            </ul>
+        </div>
+        <div class="card-footer" th:if="${webUrl != null}">
+            <a th:href="${webUrl}" target="_blank" rel="noopener" class="btn btn-primary">
+                <i class="fas fa-external-link-alt mr-1"></i> [[#{open_website}]]
+            </a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

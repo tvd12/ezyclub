@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout">
+            <section>
+                <div class="section-title">
+                    <h2>[[#{members}]]</h2>
+                    <span class="badge badge-primary number-with-commas" th:text="${community.memberCount}"></span>
+                </div>
+                <div class="card member-list" id="memberList"></div>
+                <div class="pager">
+                    <button type="button" class="btn btn-outline d-none" id="loadMoreMembersButton" onclick="loadMembers(membersState.page + 1)">[[#{load_more}]]</button>
+                </div>
+            </section>
+            <th:block th:replace="~{fragments/community :: side}"/>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <script>
+    var membersState = {
+        page: 0,
+        limit: 20
+    };
+
+    var renderMemberRow = function (user) {
+        var roleBadge = user.role && user.role !== 'MEMBER'
+            ? '<span class="badge badge-primary">' + SM.escape(SM.t('role_' + user.role.toLowerCase(), user.role)) + '</span>'
+            : '';
+        return `
+            <div class="member-row">
+                ${SM.avatar(user)}
+                <div class="member-row-info">
+                    <div class="member-row-name">${SM.escape(user.displayName)} ${roleBadge}</div>
+                    <div class="member-row-username">@${SM.escape(user.username)}</div>
+                </div>
+                <span class="badge badge-accent">${SM.escape(SM.format(SM.t('level_number', 'Level %level%'), {level: user.level}))}</span>
+            </div>
+            `;
+    };
+
+    var loadMembers = function (page) {
+        membersState.page = page;
+        var list = document.getElementById('memberList');
+        if (page === 0) {
+            list.innerHTML = SM.loadingHtml();
+        }
+        var query = '?page=' + page + '&limit=' + membersState.limit;
+        SM.get(SM.communityPath('/members' + query)).then(function (response) {
+            var html = response.items.map(renderMemberRow).join('');
+            if (page === 0) {
+                list.innerHTML = html || SM.emptyHtml('users', SM.t('no_members_yet', 'No members yet'));
+            } else {
+                list.insertAdjacentHTML('beforeend', html);
+            }
+            $('#loadMoreMembersButton').toggleClass('d-none', !response.hasMore);
+        });
+    };
+
+    $(document).ready(function () {
+        loadMembers(0);
+    });
+    </script>
+</th:block>
+</body>
+</html>

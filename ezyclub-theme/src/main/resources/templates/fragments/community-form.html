@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<form th:fragment="form" id="communityForm" class="card card-body" onsubmit="return submitCommunityForm(event)">
+    <div class="form-group">
+        <label class="form-label" for="communityName">[[#{community_name}]]</label>
+        <input type="text" id="communityName" name="name" class="form-control" maxlength="120" th:value="${community != null ? community.name : ''}" oninput="onCommunityNameInput(this)">
+    </div>
+    <div class="form-group" th:if="${community == null}">
+        <label class="form-label" for="communitySlug">[[#{community_url}]]</label>
+        <div class="input-prefix">
+            <span>/c/</span>
+            <input type="text" id="communitySlug" name="slug" class="form-control" maxlength="80" dir="ltr" oninput="communityFormState.slugEdited = true">
+        </div>
+        <div class="form-hint">[[#{community_url_hint}]]</div>
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="communityShortDescription">[[#{short_description}]]</label>
+        <input type="text" id="communityShortDescription" name="shortDescription" class="form-control" maxlength="300" th:value="${community != null ? community.shortDescription : ''}">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="communityDescription">[[#{description}]]</label>
+        <textarea id="communityDescription" name="description" class="form-control" rows="6" th:text="${community != null ? community.description : ''}"></textarea>
+    </div>
+    <div class="form-group">
+        <label class="form-label">[[#{banner}]]</label>
+        <div class="image-picker image-picker-banner" id="bannerPicker"></div>
+        <input type="hidden" name="bannerImageId" th:value="${community != null ? community.bannerImageId : 0}">
+        <input type="hidden" name="bannerUrl" th:value="${community != null ? community.bannerUrl : ''}">
+    </div>
+    <div class="form-group">
+        <label class="form-label">[[#{logo}]]</label>
+        <div class="image-picker image-picker-logo" id="logoPicker"></div>
+        <input type="hidden" name="logoImageId" th:value="${community != null ? community.logoImageId : 0}">
+        <input type="hidden" name="logoUrl" th:value="${community != null ? community.logoUrl : ''}">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="communityCategory">[[#{category}]]</label>
+        <select id="communityCategory" name="category" class="form-control">
+            <option th:each="category : ${communityCategories}" th:value="${category}" th:selected="${community != null && community.category == category}" th:text="${#messages.msg('category_' + #strings.toLowerCase(category))}"></option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="communityPrivacy">[[#{privacy}]]</label>
+        <select id="communityPrivacy" name="privacy" class="form-control">
+            <option value="PUBLIC" th:selected="${community != null && community.privacy == 'PUBLIC'}">[[#{public_privacy_option}]]</option>
+            <option value="PRIVATE" th:selected="${community != null && community.privacy == 'PRIVATE'}">[[#{private_privacy_option}]]</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">[[#{theme_color}]]</label>
+        <div class="color-options" id="colorOptions"></div>
+        <input type="hidden" name="themeColor" th:value="${community != null ? community.themeColor : ''}">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="newPostCategory">[[#{post_categories}]]</label>
+        <div class="category-editor" id="categoryEditor"></div>
+        <input type="text" id="newPostCategory" name="postCategories" class="form-control" maxlength="30" th:placeholder="#{add_category_placeholder}" onkeydown="onNewPostCategoryKeyDown(event)">
+        <div class="form-hint">[[#{post_categories_hint}]]</div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">[[${community == null ? #messages.msg('create_community') : #messages.msg('save_changes')}]]</button>
+</form>
+<script th:fragment="scripts" th:inline="javascript">
+var communityFormState = {
+    communityId: /*[[${community != null ? community.id : 0}]]*/ 0,
+    slugEdited: false,
+    postCategories: /*[[${community != null ? community.postCategories : null}]]*/ null
+};
+
+if (!communityFormState.postCategories) {
+    communityFormState.postCategories = [
+        SM.t('default_category_general', 'General'),
+        SM.t('default_category_wins', 'Wins'),
+        SM.t('default_category_questions', 'Questions')
+    ];
+}
+
+var toSlug = function (value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+};
+
+var onCommunityNameInput = function (input) {
+    var slugInput = document.getElementById('communitySlug');
+    if (slugInput && !communityFormState.slugEdited) {
+        slugInput.value = toSlug(input.value);
+    }
+};
+
+var renderColorOptions = function () {
+    var form = document.getElementById('communityForm');
+    var current = form.themeColor.value;
+    document.getElementById('colorOptions').innerHTML = SM.COVER_COLORS.map(function (color) {
+        return `
+            <button type="button" class="color-option ${color === current ? 'active' : ''}" style="background: ${color}" onclick="selectThemeColor('${color}')"></button>
+            `;
+    }).join('');
+};
+
+var selectThemeColor = function (color) {
+    document.getElementById('communityForm').themeColor.value = color;
+    renderColorOptions();
+};
+
+var renderPostCategories = function () {
+    document.getElementById('categoryEditor').innerHTML = communityFormState.postCategories.map(function (category, index) {
+        return `
+            <span class="chip">
+                <span dir="auto">${SM.escape(category)}</span>
+                <button type="button" class="action-button" onclick="removePostCategory(${index})">${SM.icon('x')}</button>
+            </span>
+            `;
+    }).join('');
+};
+
+var removePostCategory = function (index) {
+    communityFormState.postCategories.splice(index, 1);
+    renderPostCategories();
+};
+
+var onNewPostCategoryKeyDown = function (event) {
+    if (event.key !== 'Enter') {
+        return;
+    }
+    event.preventDefault();
+    var value = event.target.value.replace(/,/g, ' ').trim();
+    if (value && communityFormState.postCategories.indexOf(value) < 0) {
+        communityFormState.postCategories.push(value);
+        renderPostCategories();
+    }
+    event.target.value = '';
+};
+
+var renderImagePicker = function (type) {
+    var form = document.getElementById('communityForm');
+    var url = form[type + 'Url'].value;
+    var preview = url
+        ? '<img src="' + SM.escape(url) + '" alt="">'
+        : SM.icon('image');
+    var removeButton = url
+        ? `
+            <button type="button" class="btn btn-ghost btn-sm" onclick="removeCommunityImage('${type}')">${SM.escape(SM.t('delete', 'Delete'))}</button>
+            `
+        : '';
+    document.getElementById(type + 'Picker').innerHTML = `
+        <div class="image-picker-preview">${preview}</div>
+        <div class="image-picker-actions">
+            <label class="btn btn-outline btn-sm">
+                <span>${SM.escape(url ? SM.t('change', 'Change') : SM.t('upload', 'Upload'))}</span>
+                <input type="file" accept="image/*" hidden onchange="uploadCommunityImage('${type}', this)">
+            </label>
+            ${removeButton}
+        </div>
+        `;
+};
+
+var setCommunityImage = function (type, id, url) {
+    var form = document.getElementById('communityForm');
+    form[type + 'ImageId'].value = id;
+    form[type + 'Url'].value = url;
+    renderImagePicker(type);
+};
+
+var removeCommunityImage = function (type) {
+    setCommunityImage(type, 0, '');
+};
+
+var uploadCommunityImage = function (type, input) {
+    var file = input.files && input.files[0];
+    if (!file) {
+        return;
+    }
+    var formData = new FormData();
+    formData.append('file', file);
+    $.ajax({
+        type: 'POST',
+        url: '/api/v1/media/add?avatar=false&notPublic=false',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (media) {
+            setCommunityImage(type, media.id, '/api/v1/media/' + media.name);
+        },
+        error: function (xhr) {
+            if (xhr.status === 401) {
+                SM.redirectToLogin();
+                return;
+            }
+            SM.toast(SM.t('something_went_wrong', 'Something went wrong, please try again'), 'error');
+        }
+    });
+};
+
+var submitCommunityForm = function (event) {
+    event.preventDefault();
+    var form = event.target;
+    var data = {
+        name: form.name.value,
+        shortDescription: form.shortDescription.value,
+        description: form.description.value,
+        category: form.category.value,
+        privacy: form.privacy.value,
+        themeColor: form.themeColor.value,
+        bannerImageId: Number(form.bannerImageId.value || 0),
+        logoImageId: Number(form.logoImageId.value || 0),
+        postCategories: communityFormState.postCategories
+    };
+    if (form.slug) {
+        data.slug = form.slug.value.trim();
+    }
+    var request = communityFormState.communityId
+        ? SM.put('/communities/' + communityFormState.communityId, data)
+        : SM.post('/communities', data);
+    request.then(function (response) {
+        SM.toast(SM.t('saved', 'Saved'));
+        var slug = response && response.slug ? response.slug : SM.community.slug;
+        setTimeout(function () {
+            location.href = SM.url('/c/' + slug);
+        }, 500);
+    }).catch(function (xhr) {
+        SM.showFormErrors(form, xhr);
+    });
+    return false;
+};
+
+$(document).ready(function () {
+    var form = document.getElementById('communityForm');
+    if (!form.themeColor.value) {
+        form.themeColor.value = SM.COVER_COLORS[0];
+    }
+    renderColorOptions();
+    renderPostCategories();
+    renderImagePicker('banner');
+    renderImagePicker('logo');
+});
+</script>
+</body>
+</html>

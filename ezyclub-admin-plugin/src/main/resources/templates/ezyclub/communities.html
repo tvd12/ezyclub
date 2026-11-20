@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezyadmin}">
+<body>
+<div layout:fragment="content">
+    <div class="card">
+        <div class="card-body table-responsive p-0">
+            <table class="table table-hover text-nowrap">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>[[#{name}]]</th>
+                    <th>[[#{category}]]</th>
+                    <th>[[#{privacy}]]</th>
+                    <th>[[#{members}]]</th>
+                    <th>[[#{created_at}]]</th>
+                    <th>[[#{status}]]</th>
+                </tr>
+                </thead>
+                <tbody id="communityTableBody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-default" id="communityPrevButton" onclick="loadCommunities(communityState.page - 1)" disabled>[[#{previous}]]</button>
+            <button type="button" class="btn btn-default" id="communityNextButton" onclick="loadCommunities(communityState.page + 1)" disabled>[[#{next}]]</button>
+        </div>
+    </div>
+</div>
+<script layout:fragment="scripts" th:inline="javascript">
+var communityState = {
+    page: 0,
+    limit: 20,
+    statuses: ['ACTIVATED', 'INACTIVATED', 'DELETED'],
+    statusNames: {
+        ACTIVATED: /*[[#{activated}]]*/ '',
+        INACTIVATED: /*[[#{inactivated}]]*/ '',
+        DELETED: /*[[#{deleted}]]*/ ''
+    }
+};
+
+var renderCommunityRow = function (community) {
+    var statusOptions = communityState.statuses.map(function (status) {
+        var selected = status === community.status ? 'selected' : '';
+        return `<option value="${status}" ${selected}>${ezyadmin.escapeHtml(communityState.statusNames[status] || status)}</option>`;
+    }).join('');
+    return `
+        <tr>
+            <td>${community.id}</td>
+            <td>
+                <a href="${ezyadmin.escapeHtml(community.url)}" target="_blank" rel="noopener" dir="auto">${ezyadmin.escapeHtml(community.name)}</a>
+                <div class="text-muted small" dir="ltr">/c/${ezyadmin.escapeHtml(community.slug)}</div>
+            </td>
+            <td>${ezyadmin.escapeHtml(community.category)}</td>
+            <td>${ezyadmin.escapeHtml(community.privacy)}</td>
+            <td>${ezyadmin.escapeHtml(String(community.memberCount))}</td>
+            <td>${ezyadmin.escapeHtml(new Date(community.createdAt).toLocaleString())}</td>
+            <td>
+                <select class="form-control form-control-sm" onchange="updateCommunityStatus(${community.id}, this.value)">
+                    ${statusOptions}
+                </select>
+            </td>
+        </tr>
+        `;
+};
+
+var loadCommunities = function (page) {
+    communityState.page = Math.max(0, page);
+    $.ajax({
+        type: 'GET',
+        url: '/ezyclub/api/v1/communities?page=' + communityState.page + '&limit=' + communityState.limit,
+        success: function (response) {
+            $('#communityTableBody').html(response.items.map(renderCommunityRow).join(''));
+            $('#communityPrevButton').prop('disabled', communityState.page === 0);
+            $('#communityNextButton').prop('disabled', !response.hasMore);
+        },
+        error: function (e) {
+            ezyadmin.processGetApiErrors(e);
+        }
+    });
+};
+
+var updateCommunityStatus = function (communityId, status) {
+    $.ajax({
+        type: 'PUT',
+        url: '/ezyclub/api/v1/communities/' + communityId + '/status/' + status,
+        success: function () {
+            loadCommunities(communityState.page);
+        },
+        error: function (e) {
+            ezyadmin.processUpdateApiErrors({}, e);
+        }
+    });
+};
+
+$(document).ready(function () {
+    loadCommunities(0);
+});
+</script>
+</body>
+</html>

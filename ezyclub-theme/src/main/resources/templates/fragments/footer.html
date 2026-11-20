@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<footer th:fragment="footer" class="site-footer">
+    <div class="container">
+        <span>&copy; [[${#dates.year(#dates.createNow())}]] [[#{site_name}]]</span>
+        <div class="footer-links">
+            <a href="/">[[#{discover_communities}]]</a>
+            <a th:if="${themeSettings.allowUserCreateCommunity}" href="/create-community">[[#{create_community}]]</a>
+            <span th:utext="#{powered_by_ezyplatform}"></span>
+        </div>
+    </div>
+</footer>
+</body>
+</html>

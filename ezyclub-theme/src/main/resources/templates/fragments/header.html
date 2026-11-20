@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="announcement">
+    <div th:if="${themeSettings != null && themeSettings.announcement.enabled && !#strings.isEmpty(themeSettings.announcement.text)}" class="announcement-bar d-none" id="announcementBar">
+        <svg class="icon"><use href="#i-zap"></use></svg>
+        <span dir="auto" th:text="${themeSettings.announcement.text}"></span>
+        <button type="button" th:title="#{close}" onclick="SM.closeAnnouncement()">
+            <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+    </div>
+</th:block>
+<header th:fragment="header" class="site-header" id="siteHeaderBar">
+    <div class="container">
+        <a href="/" class="brand">
+            <img src="/images/ezyclub-logo.svg" width="34" height="34" th:alt="#{site_name}">
+            <span>[[#{site_name}]]</span>
+        </a>
+        <div class="header-search" th:if="${currentPage != 'home'}">
+            <svg class="icon"><use href="#i-search"></use></svg>
+            <input type="search" th:placeholder="#{search_communities}" onkeydown="SM.onHeaderSearch(event, this)">
+        </div>
+        <div class="header-actions">
+            <th:block th:with="currentLang=${ezyLang != null ? ezyLang : (ezyDefaultLang != null ? ezyDefaultLang : 'en')}">
+                <div th:if="${themeSettings.showLanguageSwitcher && webLanguages != null && webLanguages.size() > 1}" class="lang-switcher" id="langSwitcher">
+                    <button type="button" class="lang-switcher-button" onclick="SM.toggleLangMenu(event)">
+                        <svg class="icon"><use href="#i-globe"></use></svg>
+                        <span th:text="${#strings.toUpperCase(currentLang)}"></span>
+                    </button>
+                    <div class="lang-switcher-menu">
+                        <button th:each="language : ${webLanguages}" type="button" th:data-lang="${language.code}" th:classappend="${language.code == currentLang} ? 'active' : ''" onclick="SM.changeLanguage(this.dataset.lang)">
+                            <span th:text="${language.name}"></span>
+                            <span th:text="${#strings.toUpperCase(language.code)}"></span>
+                        </button>
+                    </div>
+                </div>
+            </th:block>
+            <th:block th:if="${loggedIn != true}">
+                <a href="/login" class="btn btn-outline btn-sm btn-login" onclick="return SM.openLoginModal();">[[#{log_in}]]</a>
+                <a href="/register" class="btn btn-primary btn-sm btn-login" onclick="return SM.openRegisterModal();">[[#{sign_up}]]</a>
+            </th:block>
+            <div th:if="${loggedIn == true}" class="user-menu" id="userMenu">
+                <button type="button" class="icon-button" th:title="${user.displayName}" onclick="SM.toggleUserMenu(event)">
+                    <span class="avatar avatar-sm" th:style="${'background:' + themeSettings.validPrimaryColor}">
+                        <img th:if="${avatarImage != null && !#strings.isEmpty(avatarImage.name)}" th:src="${'/api/v1/media/' + avatarImage.name}" th:alt="${user.displayName}">
+                        <th:block th:if="${avatarImage == null || #strings.isEmpty(avatarImage.name)}">[[${#strings.toUpperCase(#strings.substring(#strings.isEmpty(user.displayName) ? user.username : user.displayName, 0, 1))}]]</th:block>
+                    </span>
+                </button>
+                <div class="user-menu-panel">
+                    <div class="user-menu-section" dir="auto" th:text="${#strings.isEmpty(user.displayName) ? user.username : user.displayName}"></div>
+                    <a href="/account">
+                        <svg class="icon"><use href="#i-user"></use></svg>
+                        <span>[[#{my_account}]]</span>
+                    </a>
+                    <a th:if="${themeSettings.allowUserCreateCommunity}" href="/create-community">
+                        <svg class="icon"><use href="#i-plus"></use></svg>
+                        <span>[[#{create_community}]]</span>
+                    </a>
+                    <div class="user-menu-section">[[#{my_communities}]]</div>
+                    <div id="myCommunities"></div>
+                    <button type="button" onclick="ezyweb.logout()">
+                        <svg class="icon"><use href="#i-log-out"></use></svg>
+                        <span>[[#{log_out}]]</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+</body>
+</html>

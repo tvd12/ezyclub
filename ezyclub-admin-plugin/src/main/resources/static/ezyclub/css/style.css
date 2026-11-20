@@ -1,0 +1,19 @@
+.icon-ezyclub {
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    line-height: 1;
+    font-size: 1.25em !important;
+    text-align: center;
+}
+
+.icon-ezyclub::before {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='9' height='9' rx='2'/%3E%3Crect x='13' y='2' width='9' height='9' rx='2'/%3E%3Crect x='2' y='13' width='9' height='9' rx='2'/%3E%3Crect x='13' y='13' width='9' height='9' rx='2'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='9' height='9' rx='2'/%3E%3Crect x='13' y='2' width='9' height='9' rx='2'/%3E%3Crect x='2' y='13' width='9' height='9' rx='2'/%3E%3Crect x='13' y='13' width='9' height='9' rx='2'/%3E%3C/svg%3E") center / contain no-repeat;
+}

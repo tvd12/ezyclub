@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout">
+            <section>
+                <div class="card composer" onclick="openPostEditor()">
+                    <span class="avatar" th:style="${'background:' + themeSettings.validPrimaryColor}">
+                        <svg class="icon"><use href="#i-edit"></use></svg>
+                    </span>
+                    <div class="composer-placeholder">[[#{write_something}]]</div>
+                </div>
+                <div class="chip-row feed-filters" id="feedCategories">
+                    <button type="button" class="chip active" data-category="" onclick="onFeedCategoryClick(this)">[[#{all}]]</button>
+                    <button th:each="category : ${community.postCategories}" type="button" class="chip" th:data-category="${category}" th:text="${category}" onclick="onFeedCategoryClick(this)"></button>
+                </div>
+                <div class="post-list" id="postList"></div>
+                <div class="pager">
+                    <button type="button" class="btn btn-outline d-none" id="loadMorePostsButton" onclick="loadPosts(feedState.page + 1, true)">[[#{load_more}]]</button>
+                </div>
+            </section>
+            <th:block th:replace="~{fragments/community :: side}"/>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <script th:inline="javascript">
+    var feedState = {
+        page: 0,
+        limit: /*[[${postsPerPage}]]*/ 10,
+        category: '',
+        posts: {},
+        openPostId: /*[[${openPostId}]]*/ 0
+    };
+
+    var renderAuthor = function (post) {
+        var author = post.author || {};
+        var categoryBadge = post.category
+            ? '<span class="badge badge-primary">' + SM.escape(post.category) + '</span>'
+            : '';
+        var pinnedBadge = post.pinned
+            ? '<span class="badge badge-accent">' + SM.icon('pin') + ' ' + SM.escape(SM.t('pinned', 'Pinned')) + '</span>'
+            : '';
+        return `
+            <div class="post-head">
+                ${SM.avatar(author)}
+                <div>
+                    <div class="post-author">${SM.escape(author.displayName || '')}</div>
+                    <div class="post-meta">
+                        <span>${SM.escape(SM.timeAgo(post.createdAt))}</span>
+                        ${categoryBadge}
+                        ${pinnedBadge}
+                    </div>
+                </div>
+            </div>
+            `;
+    };
+
+    var renderPostActions = function (post, inModal) {
+        var menu = '';
+        if (inModal && post.editable) {
+            menu = `
+                <div class="post-menu">
+                    <button type="button" class="action-button" onclick="openPostEditor(${post.id})">${SM.icon('edit')}</button>
+                    <button type="button" class="action-button" onclick="removePost(${post.id})">${SM.icon('trash')}</button>
+                </div>
+                `;
+        }
+        if (inModal && SM.community.manager) {
+            menu = menu || '<div class="post-menu"></div>';
+            menu = menu.replace(
+                '<div class="post-menu">',
+                '<div class="post-menu"><button type="button" class="action-button" onclick="togglePinned(' + post.id + ')">' +
+                    SM.icon('pin') + ' ' + SM.escape(post.pinned ? SM.t('unpin', 'Unpin') : SM.t('pin', 'Pin')) + '</button>'
+            );
+        }
+        return `
+            <div class="post-actions">
+                <button type="button" class="action-button ${post.liked ? 'liked' : ''}" onclick="event.stopPropagation(); togglePostLike(${post.id})">
+                    ${SM.icon('thumbs-up')}
+                    <span>${SM.escape(SM.formatNumber(post.likeCount))}</span>
+                </button>
+                <button type="button" class="action-button" onclick="event.stopPropagation(); openPost(${post.id})">
+                    ${SM.icon('chat')}
+                    <span>${SM.escape(SM.formatNumber(post.commentCount))}</span>
+                </button>
+                ${menu}
+            </div>
+            `;
+    };
+
+    var renderPostCard = function (post) {
+        return `
+            <article class="card post-card ${post.pinned ? 'pinned' : ''}" id="post${post.id}" onclick="openPost(${post.id})">
+                ${renderAuthor(post)}
+                <h3 class="post-title">${SM.escape(post.title)}</h3>
+                <div class="post-content">${SM.escape(post.content)}</div>
+                ${renderPostActions(post, false)}
+            </article>
+            `;
+    };
+
+    var loadPosts = function (page, append) {
+        feedState.page = page;
+        var list = document.getElementById('postList');
+        if (!append) {
+            list.innerHTML = SM.loadingHtml();
+        }
+        var query = '?page=' + page +
+            '&limit=' + feedState.limit +
+            '&category=' + encodeURIComponent(feedState.category);
+        SM.get(SM.communityPath('/posts' + query)).then(function (response) {
+            response.items.forEach(function (post) {
+                feedState.posts[post.id] = post;
+            });
+            var html = response.items.map(renderPostCard).join('');
+            if (append) {
+                list.insertAdjacentHTML('beforeend', html);
+            } else {
+                list.innerHTML = html || SM.emptyHtml('chat', SM.t('no_posts_yet', 'No posts yet. Start the first conversation!'));
+            }
+            $('#loadMorePostsButton').toggleClass('d-none', !response.hasMore);
+        });
+    };
+
+    var onFeedCategoryClick = function (button) {
+        $('#feedCategories .chip').removeClass('active');
+        $(button).addClass('active');
+        feedState.category = button.dataset.category;
+        loadPosts(0, false);
+    };
+
+    var refreshPostCard = function (post) {
+        feedState.posts[post.id] = post;
+        var card = document.getElementById('post' + post.id);
+        if (card) {
+            card.outerHTML = renderPostCard(post);
+        }
+    };
+
+    var openPostEditor = function (postId) {
+        if (!SM.requireMember()) {
+            return;
+        }
+        var post = postId ? feedState.posts[postId] : null;
+        var categories = SM.community.postCategories || [];
+        var categoryOptions = categories.map(function (category) {
+            var selected = post && post.category === category ? 'selected' : '';
+            return '<option value="' + SM.escape(category) + '" ' + selected + '>' + SM.escape(category) + '</option>';
+        }).join('');
+        SM.openModal(`
+            <form id="postForm" onsubmit="return submitPost(event, ${post ? post.id : 0})">
+                <div class="modal-header">
+                    <h3>${SM.escape(post ? SM.t('edit_post', 'Edit post') : SM.t('new_post', 'New post'))}</h3>
+                    <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input type="text" name="title" class="form-control" maxlength="300" placeholder="${SM.escape(SM.t('title', 'Title'))}" value="${SM.escape(post ? post.title : '')}">
+                    </div>
+                    <div class="form-group">
+                        <textarea name="content" class="form-control" rows="7" placeholder="${SM.escape(SM.t('write_something', 'Write something...'))}">${SM.escape(post ? post.content : '')}</textarea>
+                    </div>
+                    <div class="form-group ${categories.length ? '' : 'd-none'}">
+                        <select name="category" class="form-control">
+                            <option value="">${SM.escape(SM.t('select_category', 'Select a category'))}</option>
+                            ${categoryOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="SM.closeModal()">${SM.escape(SM.t('cancel', 'Cancel'))}</button>
+                    <button type="submit" class="btn btn-primary">${SM.escape(post ? SM.t('save', 'Save') : SM.t('post', 'Post'))}</button>
+                </div>
+            </form>
+            `);
+        return false;
+    };
+
+    var submitPost = function (event, postId) {
+        event.preventDefault();
+        var form = event.target;
+        var data = ezyweb.formDataToObject(form.id);
+        var request = postId
+            ? SM.put(SM.communityPath('/posts/' + postId), data)
+            : SM.post(SM.communityPath('/posts'), data);
+        request.then(function () {
+            SM.closeModal();
+            SM.toast(SM.t('saved', 'Saved'));
+            loadPosts(0, false);
+        }).catch(function (xhr) {
+            SM.showFormErrors(form, xhr);
+        });
+        return false;
+    };
+
+    var removePost = function (postId) {
+        SM.confirm(SM.t('confirm_delete_post', 'Delete this post?'), function () {
+            SM.del(SM.communityPath('/posts/' + postId)).then(function () {
+                SM.toast(SM.t('deleted', 'Deleted'));
+                loadPosts(0, false);
+            });
+        });
+    };
+
+    var togglePinned = function (postId) {
+        var post = feedState.posts[postId];
+        SM.put(SM.communityPath('/posts/' + postId + '/pinned'), {value: !post.pinned}).then(function () {
+            SM.closeModal();
+            loadPosts(0, false);
+        });
+    };
+
+    var togglePostLike = function (postId) {
+        if (!SM.requireMember()) {
+            return;
+        }
+        SM.post(SM.communityPath('/posts/' + postId + '/like')).then(function (result) {
+            var post = feedState.posts[postId];
+            post.liked = result.liked;
+            post.likeCount = result.likeCount;
+            refreshPostCard(post);
+            var modalActions = document.getElementById('modalPostActions');
+            if (modalActions) {
+                modalActions.innerHTML = renderPostActions(post, true);
+            }
+        });
+    };
+
+    var renderComment = function (comment) {
+        var removeButton = comment.editable
+            ? `<button type="button" class="action-button" onclick="removeComment(${comment.postId}, ${comment.id})">${SM.icon('trash')}</button>`
+            : '';
+        var replyButton = comment.parentId
+            ? ''
+            : `<button type="button" class="action-button" onclick="replyComment(${comment.id})">${SM.escape(SM.t('reply', 'Reply'))}</button>`;
+        return `
+            <div class="comment-item ${comment.parentId ? 'reply' : ''}">
+                ${SM.avatar(comment.author, 'avatar-sm')}
+                <div class="comment-bubble">
+                    <div class="comment-bubble-inner">
+                        <div class="post-author">${SM.escape((comment.author || {}).displayName || '')}</div>
+                        <div class="post-content">${SM.escape(comment.content)}</div>
+                    </div>
+                    <div class="comment-actions">
+                        <button type="button" class="action-button ${comment.liked ? 'liked' : ''}" onclick="toggleCommentLike(${comment.postId}, ${comment.id})">
+                            ${SM.icon('thumbs-up')}
+                            <span>${SM.escape(SM.formatNumber(comment.likeCount))}</span>
+                        </button>
+                        ${replyButton}
+                        <span class="post-meta">${SM.escape(SM.timeAgo(comment.createdAt))}</span>
+                        ${removeButton}
+                    </div>
+                </div>
+            </div>
+            `;
+    };
+
+    var loadComments = function (postId) {
+        var container = document.getElementById('commentList');
+        SM.get(SM.communityPath('/posts/' + postId + '/comments')).then(function (comments) {
+            var roots = comments.filter(function (it) {
+                return !it.parentId;
+            });
+            container.innerHTML = roots.map(function (root) {
+                var replies = comments.filter(function (it) {
+                    return it.parentId === root.id;
+                });
+                return renderComment(root) + replies.map(renderComment).join('');
+            }).join('');
+        });
+    };
+
+    var openPost = function (postId) {
+        var show = function (post) {
+            feedState.posts[post.id] = post;
+            var commentForm = SM.community.joined
+                ? `
+                    <form class="comment-form" id="commentForm" onsubmit="return submitComment(event, ${post.id})">
+                        <input type="hidden" name="parentId" value="0">
+                        <textarea name="content" class="form-control" rows="2" placeholder="${SM.escape(SM.t('your_comment', 'Your comment'))}"></textarea>
+                        <button type="submit" class="btn btn-primary">${SM.icon('send')}</button>
+                    </form>
+                    `
+                : `<p class="text-muted" style="margin-top: 16px;">${SM.escape(SM.t('join_to_participate', 'Join the community to participate'))}</p>`;
+            SM.openModal(`
+                <div class="modal-header">
+                    <div>${renderAuthor(post)}</div>
+                    <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+                </div>
+                <div class="modal-body">
+                    <h2 class="post-title">${SM.escape(post.title)}</h2>
+                    <div class="post-content">${SM.escape(post.content)}</div>
+                    <div id="modalPostActions">${renderPostActions(post, true)}</div>
+                    ${commentForm}
+                    <div class="comment-list" id="commentList">${SM.loadingHtml()}</div>
+                </div>
+                `, 'modal-dialog-lg');
+            history.replaceState(null, '', SM.url('/c/' + SM.community.slug + '/posts/' + post.id));
+            SM.onModalClosed = function () {
+                history.replaceState(null, '', SM.url('/c/' + SM.community.slug));
+            };
+            loadComments(post.id);
+        };
+        SM.get(SM.communityPath('/posts/' + postId)).then(show);
+    };
+
+    var replyComment = function (commentId) {
+        var form = document.getElementById('commentForm');
+        if (!form) {
+            return;
+        }
+        form.parentId.value = commentId;
+        form.content.placeholder = SM.t('write_reply', 'Write a reply...');
+        form.content.focus();
+    };
+
+    var submitComment = function (event, postId) {
+        event.preventDefault();
+        var form = event.target;
+        var data = {
+            content: form.content.value,
+            parentId: Number(form.parentId.value || 0)
+        };
+        SM.post(SM.communityPath('/posts/' + postId + '/comments'), data).then(function () {
+            form.content.value = '';
+            form.parentId.value = 0;
+            form.content.placeholder = SM.t('your_comment', 'Your comment');
+            var post = feedState.posts[postId];
+            post.commentCount += 1;
+            refreshPostCard(post);
+            loadComments(postId);
+        }).catch(function (xhr) {
+            SM.showFormErrors(form, xhr);
+        });
+        return false;
+    };
+
+    var removeComment = function (postId, commentId) {
+        SM.confirm(SM.t('confirm_delete_comment', 'Delete this comment?'), function () {
+            SM.del(SM.communityPath('/posts/' + postId + '/comments/' + commentId)).then(function () {
+                openPost(postId);
+                loadPosts(0, false);
+            });
+        });
+    };
+
+    var toggleCommentLike = function (postId, commentId) {
+        if (!SM.requireMember()) {
+            return;
+        }
+        SM.post(SM.communityPath('/posts/' + postId + '/comments/' + commentId + '/like')).then(function () {
+            loadComments(postId);
+        });
+    };
+
+    $(document).ready(function () {
+        loadPosts(0, false);
+        if (feedState.openPostId) {
+            openPost(feedState.openPostId);
+        }
+    });
+    </script>
+</th:block>
+</body>
+</html>

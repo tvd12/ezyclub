@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <section class="discover-hero">
+        <div class="container">
+            <h1>[[#{discover_communities}]]</h1>
+            <p th:if="${themeSettings.allowUserCreateCommunity}">
+                <a href="/create-community" class="link-create">[[#{or_create_your_own}]]</a>
+            </p>
+            <div class="discover-search">
+                <svg class="icon"><use href="#i-search"></use></svg>
+                <input type="search" id="discoverKeyword" th:placeholder="#{search_communities}" onkeydown="onDiscoverKeywordKeyDown(event)">
+            </div>
+        </div>
+    </section>
+    <section class="container discover-body">
+        <div class="chip-row discover-filters" id="discoverCategories">
+            <button type="button" class="chip active" data-category="" onclick="onDiscoverCategoryClick(this)">[[#{all}]]</button>
+            <button th:each="category : ${communityCategories}" type="button" class="chip" th:data-category="${category}" onclick="onDiscoverCategoryClick(this)" th:text="${#messages.msg('category_' + #strings.toLowerCase(category))}"></button>
+        </div>
+        <div class="community-grid" id="communityGrid"></div>
+        <div class="pager">
+            <button type="button" class="btn btn-outline d-none" id="discoverPrevButton" onclick="loadDiscoverPage(discoverState.page - 1)">
+                <svg class="icon"><use href="#i-chevron-left"></use></svg>
+                <span>[[#{previous}]]</span>
+            </button>
+            <button type="button" class="btn btn-outline d-none" id="discoverNextButton" onclick="loadDiscoverPage(discoverState.page + 1)">
+                <span>[[#{next}]]</span>
+                <svg class="icon"><use href="#i-chevron-right"></use></svg>
+            </button>
+        </div>
+    </section>
+</div>
+<th:block layout:fragment="scripts">
+    <script th:inline="javascript">
+    var discoverState = {
+        page: 0,
+        limit: /*[[${themeSettings.communitiesPerPage}]]*/ 12,
+        keyword: new URLSearchParams(location.search).get('keyword') || '',
+        category: ''
+    };
+
+    var renderCommunityLogo = function (community) {
+        if (community.logoUrl) {
+            return '<span class="community-logo"><img src="' + SM.escape(community.logoUrl) + '" alt=""></span>';
+        }
+        return '<span class="community-logo" style="' + SM.coverStyle(community.slug, community.themeColor) + '">' +
+            SM.escape(SM.initialOf(community.name)) + '</span>';
+    };
+
+    var renderCommunityCover = function (community) {
+        if (community.bannerUrl) {
+            return `
+                <div class="community-card-cover">
+                    <img src="${SM.escape(community.bannerUrl)}" alt="${SM.escape(community.name)}" loading="lazy">
+                </div>
+                `;
+        }
+        return `
+            <div class="community-card-cover" style="${SM.coverStyle(community.slug, community.themeColor)}">
+                <span>${SM.escape(SM.initialOf(community.name))}</span>
+            </div>
+            `;
+    };
+
+    var renderCommunityCard = function (community) {
+        var privacyIcon = community.privacy === 'PRIVATE' ? 'lock' : 'globe';
+        var privacyText = community.privacy === 'PRIVATE'
+            ? SM.t('private', 'Private')
+            : SM.t('public', 'Public');
+        return `
+            <a class="community-card" href="${SM.escape(SM.url('/c/' + community.slug))}">
+                ${renderCommunityCover(community)}
+                <div class="community-card-body">
+                    <div class="community-card-title">
+                        ${renderCommunityLogo(community)}
+                        <h3>${SM.escape(community.name)}</h3>
+                    </div>
+                    <p>${SM.escape(community.shortDescription)}</p>
+                    <div class="community-card-meta">
+                        <span>${SM.icon('users')} ${SM.escape(SM.formatNumber(community.memberCount))}</span>
+                        <span>${SM.icon(privacyIcon)} ${SM.escape(privacyText)}</span>
+                    </div>
+                </div>
+            </a>
+            `;
+    };
+
+    var loadDiscoverPage = function (page) {
+        discoverState.page = Math.max(0, page);
+        var grid = document.getElementById('communityGrid');
+        grid.innerHTML = SM.loadingHtml();
+        var query = '?page=' + discoverState.page +
+            '&limit=' + discoverState.limit +
+            '&keyword=' + encodeURIComponent(discoverState.keyword) +
+            '&category=' + encodeURIComponent(discoverState.category);
+        SM.get('/communities' + query).then(function (response) {
+            if (response.items.length === 0) {
+                grid.innerHTML = SM.emptyHtml('search', SM.t('no_communities_found', 'No communities found'));
+            } else {
+                grid.innerHTML = response.items.map(renderCommunityCard).join('');
+            }
+            $('#discoverPrevButton').toggleClass('d-none', discoverState.page === 0);
+            $('#discoverNextButton').toggleClass('d-none', !response.hasMore);
+            changeBrowserUrl();
+        });
+    };
+
+    var changeBrowserUrl = function () {
+        var url = location.pathname;
+        if (discoverState.keyword) {
+            url += '?keyword=' + encodeURIComponent(discoverState.keyword);
+        }
+        history.replaceState(null, '', SM.url(url));
+    };
+
+    var onDiscoverKeywordKeyDown = function (event) {
+        if (event.key !== 'Enter') {
+            return;
+        }
+        discoverState.keyword = event.target.value.trim();
+        discoverState.category = '';
+        $('#discoverCategories .chip').removeClass('active');
+        $('#discoverCategories .chip[data-category=""]').addClass('active');
+        loadDiscoverPage(0);
+    };
+
+    var onDiscoverCategoryClick = function (button) {
+        $('#discoverCategories .chip').removeClass('active');
+        $(button).addClass('active');
+        discoverState.category = button.dataset.category;
+        discoverState.keyword = '';
+        document.getElementById('discoverKeyword').value = '';
+        loadDiscoverPage(0);
+    };
+
+    $(document).ready(function () {
+        document.getElementById('discoverKeyword').value = discoverState.keyword;
+        loadDiscoverPage(0);
+    });
+    </script>
+</th:block>
+</body>
+</html>

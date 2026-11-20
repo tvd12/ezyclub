@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezyadmin}">
+<body>
+<div layout:fragment="content">
+    <form id="ezyclubSettingsForm" onsubmit="return false;" novalidate>
+        <div class="card card-primary card-outline">
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="primaryColor">[[#{primary_color}]]</label>
+                    <input type="color" class="form-control" id="primaryColor" name="primaryColor" style="max-width: 120px;" th:value="${settings.primaryColor}">
+                </div>
+                <div class="form-group">
+                    <label for="communitiesPerPage">[[#{communities_per_page}]]</label>
+                    <input type="number" class="form-control" id="communitiesPerPage" name="communitiesPerPage" min="1" max="50" th:value="${settings.communitiesPerPage}">
+                </div>
+                <div class="form-group">
+                    <label for="postsPerPage">[[#{posts_per_page}]]</label>
+                    <input type="number" class="form-control" id="postsPerPage" name="postsPerPage" min="1" max="50" th:value="${settings.postsPerPage}">
+                </div>
+                <div class="form-group">
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="allowUserCreateCommunity" name="allowUserCreateCommunity" th:checked="${settings.allowUserCreateCommunity}">
+                        <label class="custom-control-label" for="allowUserCreateCommunity">[[#{users_can_create_communities}]]</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="showLanguageSwitcher" name="showLanguageSwitcher" th:checked="${settings.showLanguageSwitcher}">
+                        <label class="custom-control-label" for="showLanguageSwitcher">[[#{show_language_switcher}]]</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="announcementEnabled" name="announcementEnabled" th:checked="${settings.announcement.enabled}">
+                        <label class="custom-control-label" for="announcementEnabled">[[#{show_announcement}]]</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="announcementText">[[#{announcement_text}]]</label>
+                    <input type="text" class="form-control" id="announcementText" name="announcementText" maxlength="200" dir="auto" th:value="${settings.announcement.text}">
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+<script layout:fragment="scripts" th:inline="javascript">
+var saveEzyclubSettings = function () {
+    var form = document.getElementById('ezyclubSettingsForm');
+    var data = {
+        primaryColor: form.primaryColor.value,
+        communitiesPerPage: Number(form.communitiesPerPage.value),
+        postsPerPage: Number(form.postsPerPage.value),
+        allowUserCreateCommunity: form.allowUserCreateCommunity.checked,
+        showLanguageSwitcher: form.showLanguageSwitcher.checked,
+        announcement: {
+            enabled: form.announcementEnabled.checked,
+            text: form.announcementText.value
+        }
+    };
+    $.ajax({
+        type: 'PUT',
+        url: '/ezyclub/api/v1/settings',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function () {
+            ezyadmin.shortToast(
+                'bg-success',
+                /*[[#{settings_saved}]]*/ '',
+                /*[[#{settings_saved_description}]]*/ ''
+            );
+        },
+        error: function (e) {
+            ezyadmin.processUpdateApiErrors(data, e);
+        }
+    });
+};
+
+ezyadmin.onSaveButtonClick = saveEzyclubSettings;
+</script>
+</body>
+</html>

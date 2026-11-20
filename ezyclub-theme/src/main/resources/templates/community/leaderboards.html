@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout community-layout-full">
+            <section>
+                <div class="card level-card" id="levelCard"></div>
+                <div class="section-title" style="margin-top: 22px;">
+                    <h2>[[#{leaderboards}]]</h2>
+                </div>
+                <div class="card member-list leaderboard-list" id="leaderboardList"></div>
+            </section>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <script>
+    var renderLevelCard = function (leaderboard) {
+        var me = leaderboard.me;
+        var currentLevel = me ? me.level : 0;
+        var meHtml = me
+            ? `
+                ${SM.avatar(me, 'avatar-lg')}
+                <h3>${SM.escape(me.displayName)}</h3>
+                <div class="post-meta" style="justify-content: center;">
+                    <span class="badge badge-accent">${SM.escape(SM.format(SM.t('level_number', 'Level %level%'), {level: me.level}))}</span>
+                    <span>${SM.escape(SM.format(SM.t('rank_number', 'Rank #%value%'), {value: leaderboard.myRank}))}</span>
+                </div>
+                <p class="text-muted" style="margin-top: 8px;">${SM.escape(
+                    leaderboard.pointsToNextLevel > 0
+                        ? SM.format(SM.t('points_to_level_up', '%value% points to level up'), {value: leaderboard.pointsToNextLevel})
+                        : SM.t('max_level_reached', 'Max level reached')
+                )}</p>
+                `
+            : `
+                <h3>${SM.escape(SM.t('join_to_earn_points', 'Join to start earning points'))}</h3>
+                <p class="text-muted">${SM.escape(SM.t('earn_points_hint', 'Earn points when other members like your posts and comments.'))}</p>
+                `;
+        var steps = leaderboard.levelPoints.map(function (points, index) {
+            var level = index + 1;
+            return `
+                <div class="level-step ${level <= currentLevel ? 'reached' : ''}">
+                    <span class="level-step-number">${level}</span>
+                    <span>${SM.escape(SM.format(SM.t('points_from', 'From %value% points'), {value: SM.formatNumber(points)}))}</span>
+                </div>
+                `;
+        }).join('');
+        return `
+            <div class="level-me">${meHtml}</div>
+            <div class="level-steps">${steps}</div>
+            `;
+    };
+
+    var renderLeaderboardRow = function (user, index) {
+        var rank = index + 1;
+        return `
+            <div class="member-row">
+                <span class="leaderboard-rank top-${rank}">${rank}</span>
+                ${SM.avatar(user)}
+                <div class="member-row-info">
+                    <div class="member-row-name">${SM.escape(user.displayName)}</div>
+                    <div class="member-row-username">@${SM.escape(user.username)}</div>
+                </div>
+                <span class="leaderboard-points">+${SM.escape(SM.formatNumber(user.points))}</span>
+            </div>
+            `;
+    };
+
+    $(document).ready(function () {
+        document.getElementById('leaderboardList').innerHTML = SM.loadingHtml();
+        SM.get(SM.communityPath('/leaderboard')).then(function (leaderboard) {
+            document.getElementById('levelCard').innerHTML = renderLevelCard(leaderboard);
+            document.getElementById('leaderboardList').innerHTML = leaderboard.topMembers.length
+                ? leaderboard.topMembers.map(renderLeaderboardRow).join('')
+                : SM.emptyHtml('award', SM.t('no_members_yet', 'No members yet'));
+        });
+    });
+    </script>
+</th:block>
+</body>
+</html>

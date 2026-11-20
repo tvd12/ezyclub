@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout">
+            <section>
+                <div class="card about-locked" th:if="${!canView}">
+                    <svg class="icon"><use href="#i-lock"></use></svg>
+                    <h2>[[#{private_community}]]</h2>
+                    <p class="text-muted">[[#{private_community_description}]]</p>
+                    <button type="button" class="btn btn-primary btn-lg" onclick="SM.joinCommunity()">[[#{join_community}]]</button>
+                </div>
+                <div class="card card-body" th:style="${!canView ? 'margin-top: 16px;' : ''}">
+                    <h2 dir="auto" th:text="${community.name}"></h2>
+                    <div class="post-meta" style="margin-bottom: 14px;">
+                        <span class="badge badge-primary" th:text="${#messages.msg('category_' + #strings.toLowerCase(community.category))}"></span>
+                        <span th:text="${#messages.msg('members_count', community.memberCount)}"></span>
+                    </div>
+                    <p class="side-description" th:if="${!#strings.isEmpty(community.shortDescription)}" th:text="${community.shortDescription}"></p>
+                    <div class="post-content" th:if="${!#strings.isEmpty(community.description)}" th:text="${community.description}"></div>
+                </div>
+            </section>
+            <th:block th:replace="~{fragments/community :: side}"/>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+</th:block>
+</body>
+</html>

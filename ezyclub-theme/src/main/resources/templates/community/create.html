@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <div class="container">
+        <div class="page-section narrow">
+            <h1>[[#{create_community}]]</h1>
+            <p class="text-muted">[[#{create_community_description}]]</p>
+            <th:block th:with="community=${null}">
+                <th:block th:replace="~{fragments/community-form :: form}"/>
+            </th:block>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:with="community=${null}">
+        <th:block th:replace="~{fragments/community-form :: scripts}"/>
+    </th:block>
+</th:block>
+</body>
+</html>

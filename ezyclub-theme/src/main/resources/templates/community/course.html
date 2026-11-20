@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout community-layout-full">
+            <section>
+                <div class="section-title">
+                    <a th:href="${'/c/' + community.slug + '/classroom'}" class="btn btn-ghost btn-sm">
+                        <svg class="icon"><use href="#i-arrow-left"></use></svg>
+                        <span>[[#{classroom}]]</span>
+                    </a>
+                    <div class="post-menu" th:if="${manager}">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="openLessonEditor(courseState.courseId)">
+                            <svg class="icon"><use href="#i-plus"></use></svg>
+                            <span>[[#{new_lesson}]]</span>
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="openCourseEditor(courseState.course)">
+                            <svg class="icon"><use href="#i-edit"></use></svg>
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="removeCourse()">
+                            <svg class="icon"><use href="#i-trash"></use></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="courseContainer"></div>
+            </section>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <th:block th:replace="~{fragments/classroom :: scripts}"/>
+    <script th:inline="javascript">
+    var courseState = {
+        courseId: /*[[${courseId}]]*/ 0,
+        course: null,
+        lessons: [],
+        currentLessonId: 0
+    };
+
+    var toEmbedUrl = function (url) {
+        if (!url) {
+            return '';
+        }
+        var youtube = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/);
+        if (youtube) {
+            return 'https://www.youtube.com/embed/' + youtube[1];
+        }
+        var vimeo = url.match(/vimeo\.com\/(\d+)/);
+        if (vimeo) {
+            return 'https://player.vimeo.com/video/' + vimeo[1];
+        }
+        return '';
+    };
+
+    var renderVideo = function (url) {
+        if (!url) {
+            return '';
+        }
+        var embedUrl = toEmbedUrl(url);
+        var player = embedUrl
+            ? '<iframe src="' + SM.escape(embedUrl) + '" allowfullscreen></iframe>'
+            : '<video src="' + SM.escape(url) + '" controls></video>';
+        return '<div class="video-frame">' + player + '</div>';
+    };
+
+    var renderLessonNav = function () {
+        var course = courseState.course;
+        return `
+            <div class="card lesson-nav">
+                <h3>${SM.escape(course.title)}</h3>
+                <div class="progress"><span style="width: ${course.progress}%"></span></div>
+                <div class="progress-label" style="padding-inline: 8px;">${SM.escape(SM.format(SM.t('progress_complete', '%value%% complete'), {value: course.progress}))}</div>
+                ${courseState.lessons.map(function (lesson) {
+                    var draft = lesson.published ? '' : ' (' + SM.t('draft', 'Draft') + ')';
+                    return `
+                        <button type="button" class="lesson-nav-item ${lesson.id === courseState.currentLessonId ? 'active' : ''}" onclick="selectLesson(${lesson.id})">
+                            <span class="lesson-check ${lesson.completed ? 'done' : ''}">${lesson.completed ? SM.icon('check') : ''}</span>
+                            <span>${SM.escape(lesson.title + draft)}</span>
+                        </button>
+                        `;
+                }).join('')}
+            </div>
+            `;
+    };
+
+    var renderLessonView = function () {
+        var lesson = courseState.lessons.find(function (it) {
+            return it.id === courseState.currentLessonId;
+        });
+        if (!lesson) {
+            return '<div class="card lesson-view">' + SM.emptyHtml('book', SM.t('no_lessons_yet', 'No lessons yet')) + '</div>';
+        }
+        var managerButtons = SM.community.manager
+            ? `
+                <button type="button" class="btn btn-outline btn-sm" onclick="editCurrentLesson()">${SM.icon('edit')}</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="removeCurrentLesson()">${SM.icon('trash')}</button>
+                `
+            : '';
+        var completeButton = SM.community.joined
+            ? `
+                <button type="button" class="btn ${lesson.completed ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="toggleLessonCompleted(${lesson.id})">
+                    ${SM.icon('check')}
+                    <span>${SM.escape(lesson.completed ? SM.t('completed', 'Completed') : SM.t('mark_as_complete', 'Mark as complete'))}</span>
+                </button>
+                `
+            : '';
+        return `
+            <div class="card lesson-view">
+                <div class="section-title">
+                    <h2>${SM.escape(lesson.title)}</h2>
+                    <div class="post-menu">${completeButton}${managerButtons}</div>
+                </div>
+                ${renderVideo(lesson.videoUrl)}
+                <div class="post-content">${SM.escape(lesson.content)}</div>
+            </div>
+            `;
+    };
+
+    var renderLockedCourse = function () {
+        var course = courseState.course;
+        return `
+            <div class="card about-locked">
+                ${SM.icon('lock')}
+                <h2>${SM.escape(course.title)}</h2>
+                <p>${SM.escape(SM.format(SM.t('unlock_at_level', 'Unlock at level %level%'), {level: course.unlockLevel}))}</p>
+                <p class="text-muted">${SM.escape(SM.t('earn_points_hint', 'Earn points when other members like your posts and comments.'))}</p>
+            </div>
+            `;
+    };
+
+    var renderCourse = function () {
+        var container = document.getElementById('courseContainer');
+        if (courseState.course.locked) {
+            container.innerHTML = renderLockedCourse();
+            return;
+        }
+        container.innerHTML = `
+            <div class="course-layout">
+                ${renderLessonNav()}
+                ${renderLessonView()}
+            </div>
+            `;
+    };
+
+    var loadCourse = function () {
+        document.getElementById('courseContainer').innerHTML = SM.loadingHtml();
+        SM.get(SM.communityPath('/courses/' + courseState.courseId)).then(function (response) {
+            courseState.course = response.course;
+            courseState.lessons = response.lessons;
+            var exists = courseState.lessons.some(function (it) {
+                return it.id === courseState.currentLessonId;
+            });
+            if (!exists) {
+                var firstIncomplete = courseState.lessons.find(function (it) {
+                    return !it.completed;
+                });
+                var first = firstIncomplete || courseState.lessons[0];
+                courseState.currentLessonId = first ? first.id : 0;
+            }
+            renderCourse();
+        }).catch(function () {
+            document.getElementById('courseContainer').innerHTML = SM.emptyHtml('alert', SM.t('course_not_found', 'Course not found'));
+        });
+    };
+
+    var selectLesson = function (lessonId) {
+        courseState.currentLessonId = lessonId;
+        renderCourse();
+    };
+
+    var toggleLessonCompleted = function (lessonId) {
+        var lesson = courseState.lessons.find(function (it) {
+            return it.id === lessonId;
+        });
+        var path = '/courses/' + courseState.courseId + '/lessons/' + lessonId + '/completed';
+        SM.put(SM.communityPath(path), {value: !lesson.completed}).then(loadCourse);
+    };
+
+    var editCurrentLesson = function () {
+        var lesson = courseState.lessons.find(function (it) {
+            return it.id === courseState.currentLessonId;
+        });
+        openLessonEditor(courseState.courseId, lesson);
+    };
+
+    var removeCurrentLesson = function () {
+        SM.confirm(SM.t('confirm_delete_lesson', 'Delete this lesson?'), function () {
+            var path = '/courses/' + courseState.courseId + '/lessons/' + courseState.currentLessonId;
+            SM.del(SM.communityPath(path)).then(function () {
+                courseState.currentLessonId = 0;
+                loadCourse();
+            });
+        });
+    };
+
+    var removeCourse = function () {
+        SM.confirm(SM.t('confirm_delete_course', 'Delete this course?'), function () {
+            SM.del(SM.communityPath('/courses/' + courseState.courseId)).then(function () {
+                location.href = SM.url('/c/' + SM.community.slug + '/classroom');
+            });
+        });
+    };
+
+    SM.onCourseSaved = loadCourse;
+    SM.onLessonSaved = loadCourse;
+
+    $(document).ready(loadCourse);
+    </script>
+</th:block>
+</body>
+</html>

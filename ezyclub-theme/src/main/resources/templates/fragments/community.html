@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="header" class="community-header">
+    <div class="container">
+        <a th:href="${'/c/' + community.slug}" class="community-header-name">
+            <span th:if="${!#strings.isEmpty(community.logoUrl)}" class="community-logo avatar-sm"><img th:src="${community.logoUrl}" alt=""></span>
+            <span th:if="${#strings.isEmpty(community.logoUrl)}" class="community-logo avatar-sm" th:data-cover-slug="${community.slug}" th:data-cover-color="${community.themeColor}" th:text="${#strings.toUpperCase(#strings.substring(community.name, 0, 1))}"></span>
+            <span th:text="${community.name}"></span>
+        </a>
+    </div>
+    <div class="container">
+        <nav class="community-tabs">
+            <a th:href="${'/c/' + community.slug}" th:classappend="${currentTab == 'community'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-chat"></use></svg>
+                <span>[[#{community}]]</span>
+            </a>
+            <a th:href="${'/c/' + community.slug + '/classroom'}" th:classappend="${currentTab == 'classroom'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-book"></use></svg>
+                <span>[[#{classroom}]]</span>
+            </a>
+            <a th:href="${'/c/' + community.slug + '/calendar'}" th:classappend="${currentTab == 'calendar'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-calendar"></use></svg>
+                <span>[[#{calendar}]]</span>
+            </a>
+            <a th:href="${'/c/' + community.slug + '/members'}" th:classappend="${currentTab == 'members'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-users"></use></svg>
+                <span>[[#{members}]]</span>
+            </a>
+            <a th:href="${'/c/' + community.slug + '/leaderboards'}" th:classappend="${currentTab == 'leaderboards'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-award"></use></svg>
+                <span>[[#{leaderboards}]]</span>
+            </a>
+            <a th:href="${'/c/' + community.slug + '/about'}" th:classappend="${currentTab == 'about'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-info"></use></svg>
+                <span>[[#{about}]]</span>
+            </a>
+            <a th:if="${manager}" th:href="${'/c/' + community.slug + '/settings'}" th:classappend="${currentTab == 'settings'} ? 'active' : ''">
+                <svg class="icon"><use href="#i-settings"></use></svg>
+                <span>[[#{settings}]]</span>
+            </a>
+        </nav>
+    </div>
+</div>
+<aside th:fragment="side" class="community-side">
+    <div class="card side-card">
+        <div th:if="${!#strings.isEmpty(community.bannerUrl)}" class="side-cover"><img th:src="${community.bannerUrl}" th:alt="${community.name}"></div>
+        <div th:if="${#strings.isEmpty(community.bannerUrl)}" class="side-cover" th:data-cover-slug="${community.slug}" th:data-cover-color="${community.themeColor}" th:text="${#strings.toUpperCase(#strings.substring(community.name, 0, 1))}"></div>
+        <div class="card-body">
+            <h3 th:text="${community.name}"></h3>
+            <div class="side-slug" th:text="${'/c/' + community.slug}"></div>
+            <p class="side-description" th:if="${!#strings.isEmpty(community.shortDescription)}" th:text="${community.shortDescription}"></p>
+            <div class="side-stats">
+                <div>
+                    <strong class="number-with-commas" th:text="${community.memberCount}"></strong>
+                    <span>[[#{members}]]</span>
+                </div>
+                <div>
+                    <strong class="number-with-commas" th:text="${postCount}"></strong>
+                    <span>[[#{posts}]]</span>
+                </div>
+                <div>
+                    <strong>
+                        <svg class="icon"><use th:href="${community.privacy == 'PRIVATE' ? '#i-lock' : '#i-globe'}"></use></svg>
+                    </strong>
+                    <span th:text="${community.privacy == 'PRIVATE' ? #messages.msg('private') : #messages.msg('public')}"></span>
+                </div>
+            </div>
+            <th:block th:if="${!community.joined}">
+                <button type="button" class="btn btn-primary btn-block" onclick="SM.joinCommunity()">[[#{join_community}]]</button>
+            </th:block>
+            <th:block th:if="${community.joined}">
+                <div class="post-meta" th:if="${member != null}">
+                    <span class="badge badge-accent" th:text="${#messages.msg('level_value', member.level)}"></span>
+                    <span class="badge badge-primary" th:text="${#messages.msg('role_' + #strings.toLowerCase(member.role))}"></span>
+                    <span th:text="${#messages.msg('points_number', member.points)}"></span>
+                </div>
+                <a th:if="${manager}" th:href="${'/c/' + community.slug + '/settings'}" class="btn btn-outline btn-block" style="margin-top: 12px;">
+                    <svg class="icon"><use href="#i-settings"></use></svg>
+                    <span>[[#{settings}]]</span>
+                </a>
+                <button th:if="${member != null && member.role != 'OWNER'}" type="button" class="btn btn-ghost btn-block" style="margin-top: 8px;" onclick="SM.leaveCommunity()">[[#{leave_community}]]</button>
+            </th:block>
+        </div>
+    </div>
+</aside>
+<script th:fragment="scripts" th:inline="javascript">
+SM.community = {
+    id: /*[[${community.id}]]*/ 0,
+    slug: /*[[${community.slug}]]*/ '',
+    name: /*[[${community.name}]]*/ '',
+    themeColor: /*[[${community.themeColor}]]*/ '',
+    joined: /*[[${community.joined}]]*/ false,
+    manager: /*[[${manager}]]*/ false,
+    canView: /*[[${canView}]]*/ false,
+    postCategories: /*[[${community.postCategories}]]*/ [],
+    userId: /*[[${member != null ? member.userId : 0}]]*/ 0
+};
+
+SM.communityPath = function (path) {
+    return '/communities/' + SM.community.id + (path || '');
+};
+
+SM.joinCommunity = function () {
+    if (!SM.requireLogin()) {
+        return;
+    }
+    SM.post(SM.communityPath('/join')).then(function () {
+        SM.toast(SM.t('joined_community', 'Welcome! You joined the community'));
+        setTimeout(function () {
+            location.reload();
+        }, 600);
+    });
+};
+
+SM.leaveCommunity = function () {
+    SM.confirm(SM.t('confirm_leave_community', 'Leave this community?'), function () {
+        SM.post(SM.communityPath('/leave')).then(function () {
+            location.href = SM.url('/c/' + SM.community.slug + '/about');
+        });
+    });
+};
+
+SM.requireMember = function () {
+    if (!SM.requireLogin()) {
+        return false;
+    }
+    if (!SM.community.joined) {
+        SM.toast(SM.t('join_to_participate', 'Join the community to participate'), 'error');
+        return false;
+    }
+    return true;
+};
+
+$(document).ready(function () {
+    document.querySelectorAll('[data-cover-slug]').forEach(function (element) {
+        element.setAttribute(
+            'style',
+            SM.coverStyle(element.dataset.coverSlug, element.dataset.coverColor)
+        );
+    });
+});
+</script>
+</body>
+</html>

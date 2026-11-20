@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:th="http://www.thymeleaf.org"
+    xmlns:ezy="http://www.ezyplatform.com/thymeleaf/layout"
+    xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{ezytheme}">
+<body>
+<div layout:fragment="content">
+    <th:block th:replace="~{fragments/community :: header}"/>
+    <div class="container">
+        <div class="community-layout">
+            <section>
+                <div class="card card-body">
+                    <div class="calendar-toolbar">
+                        <button type="button" class="icon-button" onclick="moveMonth(-1)">
+                            <svg class="icon"><use href="#i-chevron-left"></use></svg>
+                        </button>
+                        <h2 id="calendarTitle"></h2>
+                        <button type="button" class="icon-button" onclick="moveMonth(1)">
+                            <svg class="icon"><use href="#i-chevron-right"></use></svg>
+                        </button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="goToday()">[[#{today}]]</button>
+                        <button th:if="${manager}" type="button" class="btn btn-primary btn-sm" onclick="openEventEditor()">
+                            <svg class="icon"><use href="#i-plus"></use></svg>
+                            <span>[[#{new_event}]]</span>
+                        </button>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                </div>
+            </section>
+            <aside class="community-side">
+                <div class="card card-body">
+                    <h3>[[#{upcoming_events}]]</h3>
+                    <div class="upcoming-list" id="upcomingList"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+<th:block layout:fragment="scripts">
+    <th:block th:replace="~{fragments/community :: scripts}"/>
+    <script>
+    var calendarState = {
+        month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        events: {}
+    };
+
+    var sameDay = function (a, b) {
+        return a.getFullYear() === b.getFullYear()
+            && a.getMonth() === b.getMonth()
+            && a.getDate() === b.getDate();
+    };
+
+    var renderCalendar = function (events) {
+        var month = calendarState.month;
+        document.getElementById('calendarTitle').textContent = month.toLocaleDateString(SM.locale(), {
+            month: 'long',
+            year: 'numeric'
+        });
+        var start = new Date(month);
+        start.setDate(1 - start.getDay());
+        var html = '';
+        for (var i = 0; i < 7; ++i) {
+            var weekday = new Date(start);
+            weekday.setDate(start.getDate() + i);
+            html += '<div class="calendar-weekday">' + SM.escape(weekday.toLocaleDateString(SM.locale(), {weekday: 'short'})) + '</div>';
+        }
+        var today = new Date();
+        for (var d = 0; d < 42; ++d) {
+            var day = new Date(start);
+            day.setDate(start.getDate() + d);
+            var dayEvents = events.filter(function (event) {
+                return sameDay(new Date(event.startAt), day);
+            });
+            var classes = 'calendar-day';
+            if (day.getMonth() !== month.getMonth()) {
+                classes += ' other-month';
+            }
+            if (sameDay(day, today)) {
+                classes += ' today';
+            }
+            html += `
+                <div class="${classes}">
+                    <span class="calendar-day-number">${day.getDate()}</span>
+                    ${dayEvents.map(function (event) {
+                        var time = new Date(event.startAt).toLocaleTimeString(SM.locale(), {hour: '2-digit', minute: '2-digit'});
+                        return '<button type="button" class="calendar-event" onclick="openEvent(' + event.id + ')">' +
+                            SM.escape(time + ' ' + event.title) + '</button>';
+                    }).join('')}
+                </div>
+                `;
+        }
+        document.getElementById('calendarGrid').innerHTML = html;
+    };
+
+    var loadMonth = function () {
+        var month = calendarState.month;
+        var fromTime = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay()).getTime();
+        var toTime = fromTime + 42 * 24 * 60 * 60 * 1000;
+        SM.get(SM.communityPath('/events?fromTime=' + fromTime + '&toTime=' + toTime)).then(function (events) {
+            events.forEach(function (event) {
+                calendarState.events[event.id] = event;
+            });
+            renderCalendar(events);
+        });
+    };
+
+    var loadUpcoming = function () {
+        var fromTime = Date.now();
+        var toTime = fromTime + 60 * 24 * 60 * 60 * 1000;
+        SM.get(SM.communityPath('/events?fromTime=' + fromTime + '&toTime=' + toTime)).then(function (events) {
+            events.forEach(function (event) {
+                calendarState.events[event.id] = event;
+            });
+            var list = document.getElementById('upcomingList');
+            list.innerHTML = events.length
+                ? events.slice(0, 6).map(function (event) {
+                    var date = new Date(event.startAt);
+                    return `
+                        <div class="card upcoming-item" onclick="openEvent(${event.id})">
+                            <div class="upcoming-date">
+                                <strong>${date.getDate()}</strong>
+                                <span>${SM.escape(date.toLocaleDateString(SM.locale(), {month: 'short'}))}</span>
+                            </div>
+                            <div>
+                                <div class="post-author">${SM.escape(event.title)}</div>
+                                <div class="post-meta">${SM.escape(SM.formatDateTime(event.startAt))}</div>
+                            </div>
+                        </div>
+                        `;
+                }).join('')
+                : SM.emptyHtml('calendar', SM.t('no_upcoming_events', 'No upcoming events'));
+        });
+    };
+
+    var reloadEvents = function () {
+        loadMonth();
+        loadUpcoming();
+    };
+
+    var moveMonth = function (delta) {
+        var month = calendarState.month;
+        calendarState.month = new Date(month.getFullYear(), month.getMonth() + delta, 1);
+        loadMonth();
+    };
+
+    var goToday = function () {
+        calendarState.month = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        loadMonth();
+    };
+
+    var openEvent = function (eventId) {
+        var event = calendarState.events[eventId];
+        var meeting = event.meetingUrl
+            ? `<p>${SM.icon('video')} <a href="${SM.escape(event.meetingUrl)}" target="_blank" rel="noopener" dir="ltr">${SM.escape(event.meetingUrl)}</a></p>`
+            : '';
+        var locationHtml = event.location
+            ? `<p>${SM.icon('map-pin')} <span dir="auto">${SM.escape(event.location)}</span></p>`
+            : '';
+        var attendButton = SM.community.joined
+            ? `<button type="button" class="btn ${event.attending ? 'btn-outline' : 'btn-primary'}" onclick="toggleAttending(${event.id})">${SM.escape(event.attending ? SM.t('not_going', 'Not going') : SM.t('going', 'Going'))}</button>`
+            : '';
+        var managerButtons = event.editable
+            ? `
+                <button type="button" class="btn btn-outline" onclick="openEventEditor(${event.id})">${SM.icon('edit')}</button>
+                <button type="button" class="btn btn-outline" onclick="removeEvent(${event.id})">${SM.icon('trash')}</button>
+                `
+            : '';
+        SM.openModal(`
+            <div class="modal-header">
+                <h3 dir="auto">${SM.escape(event.title)}</h3>
+                <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+            </div>
+            <div class="modal-body">
+                <p>${SM.icon('clock')} ${SM.escape(SM.formatDateTime(event.startAt))} - ${SM.escape(SM.formatDateTime(event.finishAt))}</p>
+                ${locationHtml}
+                ${meeting}
+                <p>${SM.icon('users')} ${SM.escape(SM.format(SM.t('attendees_count', '%value% going'), {value: event.attendeeCount}))}</p>
+                <div class="post-content">${SM.escape(event.description)}</div>
+            </div>
+            <div class="modal-footer">${managerButtons}${attendButton}</div>
+            `);
+    };
+
+    var toLocalInputValue = function (timestamp) {
+        var date = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60000);
+        return date.toISOString().slice(0, 16);
+    };
+
+    var openEventEditor = function (eventId) {
+        var event = eventId ? calendarState.events[eventId] : null;
+        var defaultStart = Date.now() + 24 * 60 * 60 * 1000;
+        SM.openModal(`
+            <form onsubmit="return submitEvent(event, ${event ? event.id : 0})">
+                <div class="modal-header">
+                    <h3>${SM.escape(event ? SM.t('edit_event', 'Edit event') : SM.t('new_event', 'New event'))}</h3>
+                    <button type="button" class="icon-button" onclick="SM.closeModal()">${SM.icon('x')}</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('title', 'Title'))}</label>
+                        <input type="text" name="title" class="form-control" maxlength="300" value="${SM.escape(event ? event.title : '')}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('starts_at', 'Starts at'))}</label>
+                        <input type="datetime-local" name="startAt" class="form-control" value="${toLocalInputValue(event ? event.startAt : defaultStart)}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('ends_at', 'Ends at'))}</label>
+                        <input type="datetime-local" name="finishAt" class="form-control" value="${toLocalInputValue(event ? event.finishAt : defaultStart + 60 * 60 * 1000)}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('location', 'Location'))}</label>
+                        <input type="text" name="location" class="form-control" value="${SM.escape(event ? event.location : '')}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('meeting_url', 'Meeting URL'))}</label>
+                        <input type="url" name="meetingUrl" class="form-control" dir="ltr" placeholder="https://" value="${SM.escape(event ? event.meetingUrl : '')}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${SM.escape(SM.t('description', 'Description'))}</label>
+                        <textarea name="description" class="form-control" rows="4">${SM.escape(event ? event.description : '')}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="SM.closeModal()">${SM.escape(SM.t('cancel', 'Cancel'))}</button>
+                    <button type="submit" class="btn btn-primary">${SM.escape(SM.t('save', 'Save'))}</button>
+                </div>
+            </form>
+            `);
+    };
+
+    var submitEvent = function (domEvent, eventId) {
+        domEvent.preventDefault();
+        var form = domEvent.target;
+        var data = {
+            title: form.title.value,
+            startAt: form.startAt.value ? new Date(form.startAt.value).getTime() : 0,
+            finishAt: form.finishAt.value ? new Date(form.finishAt.value).getTime() : 0,
+            location: form.location.value,
+            meetingUrl: form.meetingUrl.value,
+            description: form.description.value
+        };
+        var request = eventId
+            ? SM.put(SM.communityPath('/events/' + eventId), data)
+            : SM.post(SM.communityPath('/events'), data);
+        request.then(function () {
+            SM.closeModal();
+            SM.toast(SM.t('saved', 'Saved'));
+            reloadEvents();
+        }).catch(function (xhr) {
+            SM.showFormErrors(form, xhr);
+        });
+        return false;
+    };
+
+    var removeEvent = function (eventId) {
+        SM.confirm(SM.t('confirm_delete_event', 'Delete this event?'), function () {
+            SM.del(SM.communityPath('/events/' + eventId)).then(reloadEvents);
+        });
+    };
+
+    var toggleAttending = function (eventId) {
+        var event = calendarState.events[eventId];
+        SM.put(SM.communityPath('/events/' + eventId + '/attending'), {value: !event.attending}).then(function () {
+            event.attending = !event.attending;
+            event.attendeeCount += event.attending ? 1 : -1;
+            openEvent(eventId);
+        });
+    };
+
+    $(document).ready(reloadEvents);
+    </script>
+</th:block>
+</body>
+</html>
